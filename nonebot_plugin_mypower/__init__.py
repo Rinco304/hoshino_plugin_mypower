@@ -1,32 +1,31 @@
-import os
+import os, asyncio, base64
 import random
 from io import BytesIO  # 导入BytesIO
-from nonebot import on_command
-from nonebot.adapters.onebot.v11 import Bot, MessageSegment, Event
-from nonebot.adapters.onebot.v11.message import Message
-from nonebot.plugin import PluginMetadata
-
-# 元数据
-__plugin_meta__ = PluginMetadata(
-    name="nonebot-plugin-mypower",
-    description="随机生成超能力",
-    usage="我的超能力",
-    type="application",
-    homepage="https://github.com/tianyisama/nonebot_plugin_mypower",
-    supported_adapters={"~onebot.v11"},
-)
-
+from nonebot import MessageSegment
+from hoshino import Service
+from hoshino.typing import CQEvent
 # 尝试导入Pillow
 try:
     from PIL import Image
     pillow_available = True
 except ImportError:
     pillow_available = False
-
 # 命令触发
-my_superpower = on_command('我的超能力', priority=10, block=True)
+# my_superpower = on_command('我的超能力', priority=10, block=True)
 
 
+# 元数据
+sv_help = '''
+[我的超能力] 随机生成超能力
+'''.strip()
+
+sv = Service(
+    name="我的超能力",  # 功能名
+    visible=True,  # 可见性
+    enable_on_default=True,  # 默认启用
+    bundle="娱乐",  # 分组归类
+    help_=sv_help,  # 帮助说明
+)
 
 def create_image(selected_images):
     # 读取第一张图片以确定宽度
@@ -53,10 +52,10 @@ def create_image(selected_images):
 
     return new_image
 
-@my_superpower.handle()
-async def _(bot: Bot, event: Event):
+@sv.on_fullmatch('我的超能力')
+async def _(bot, event: CQEvent):
     if not pillow_available:
-        await my_superpower.send("图片处理功能无法使用，因为Pillow库没有安装。")
+        await bot.send("图片处理功能无法使用，因为Pillow库没有安装。")
         return
 
     folders = ['超能力', '但是', '主义', '万圣节']
@@ -70,7 +69,7 @@ async def _(bot: Bot, event: Event):
             selected_image_path = random.choice(images)
             selected_images.append(selected_image_path)
         else:
-            await my_superpower.send(f"No images found in {folder}.")
+            await bot.send(event, f"No images found in {folder}.")
             return
 
     try:
@@ -79,9 +78,11 @@ async def _(bot: Bot, event: Event):
         img_byte_arr = BytesIO()
         new_image.save(img_byte_arr, format='PNG')
         img_byte_arr.seek(0)
-
+        image_base64 = 'base64://' + base64.b64encode(img_byte_arr.getvalue()).decode('utf-8')
         # 发送图片
-        await my_superpower.send(MessageSegment.reply(event.message_id) + MessageSegment.image(img_byte_arr))
+        msg = await bot.send(event, MessageSegment.image(image_base64), at_sender=True)
+        await asyncio.sleep(30)
+        await bot.delete_msg(message_id=msg['message_id'])
     except Exception as e:
-        await my_superpower.send(MessageSegment.reply(event.message_id) + f"图片发送失败: {e}")
+        await bot.send(event, f"图片发送失败: {e}")
 
